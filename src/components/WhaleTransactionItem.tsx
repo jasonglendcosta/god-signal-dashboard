@@ -1,20 +1,28 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowUpRight, ArrowDownRight, ArrowRightLeft } from 'lucide-react';
-import { WhaleTransaction } from '@/data/mock';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { formatNumber, timeAgo, getChainColor } from '@/lib/utils';
 
 interface WhaleTransactionItemProps {
-  tx: WhaleTransaction;
+  tx: Record<string, any>;
   index: number;
 }
 
 export default function WhaleTransactionItem({ tx, index }: WhaleTransactionItemProps) {
-  const chainColor = getChainColor(tx.chain);
-  const typeIcon = tx.type === 'BUY' ? ArrowUpRight : tx.type === 'SELL' ? ArrowDownRight : ArrowRightLeft;
-  const TypeIcon = typeIcon;
-  const typeColor = tx.type === 'BUY' ? '#00E676' : tx.type === 'SELL' ? '#FF1744' : '#FFD600';
+  const chain = tx.chain ?? 'multi';
+  const chainColor = getChainColor(chain);
+  const details = typeof tx.details === 'object' ? tx.details : {};
+  const reasons = details?.reasons ?? [];
+  const name = details?.name ?? tx.token;
+
+  const isAccumulation = (tx.signal_type ?? '').includes('accumulation');
+  const TypeIcon = isAccumulation ? ArrowUpRight : ArrowDownRight;
+  const typeColor = isAccumulation ? '#00E676' : '#FF1744';
+  const typeLabel = isAccumulation ? 'ACCUMULATION' : 'DISTRIBUTION';
+
+  const change24h = details?.change_24h;
+  const volMcap = details?.vol_mcap_ratio;
 
   return (
     <motion.div
@@ -34,28 +42,44 @@ export default function WhaleTransactionItem({ tx, index }: WhaleTransactionItem
       {/* Details */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">
-            {tx.walletLabel || tx.wallet}
-          </span>
+          <span className="text-sm font-medium truncate">{tx.token}</span>
+          {name !== tx.token && (
+            <span className="text-[10px] text-text-muted truncate">{name}</span>
+          )}
           <span
             className="px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0"
             style={{ background: `${chainColor}20`, color: chainColor }}
           >
-            {tx.chain}
+            {chain}
           </span>
         </div>
         <div className="flex items-center gap-2 text-xs text-text-muted">
-          <span style={{ color: typeColor }}>{tx.type}</span>
+          <span style={{ color: typeColor }}>{typeLabel}</span>
           <span>•</span>
-          <span>{tx.symbol}</span>
+          <span>Score: {Math.round(tx.confidence ?? 0)}</span>
+          {change24h != null && (
+            <>
+              <span>•</span>
+              <span style={{ color: change24h >= 0 ? '#00E676' : '#FF1744' }}>
+                24h: {change24h >= 0 ? '+' : ''}{change24h.toFixed(1)}%
+              </span>
+            </>
+          )}
           <span>•</span>
-          <span>{timeAgo(tx.timestamp)}</span>
+          <span>{tx.created_at ? timeAgo(tx.created_at) : '—'}</span>
         </div>
       </div>
 
-      {/* Value */}
+      {/* Volume / Reasons */}
       <div className="text-right shrink-0">
-        <span className="text-sm font-display font-semibold">{formatNumber(tx.value)}</span>
+        {tx.volume_24h ? (
+          <span className="text-sm font-display font-semibold">
+            ${tx.volume_24h >= 1e9 ? `${(tx.volume_24h / 1e9).toFixed(1)}B` : `${(tx.volume_24h / 1e6).toFixed(0)}M`}
+          </span>
+        ) : null}
+        {volMcap != null && volMcap > 0.1 && (
+          <p className="text-[10px] text-text-muted">V/MC: {(volMcap * 100).toFixed(0)}%</p>
+        )}
       </div>
     </motion.div>
   );
