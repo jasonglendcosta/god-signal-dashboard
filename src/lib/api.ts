@@ -34,9 +34,10 @@ export async function getWhaleTransactions(): Promise<WhaleTransaction[]> {
 
 // ─── Trending Tokens ──────────────────────────────────────────────────────────
 export async function getTrendingTokens(): Promise<TrendingToken[]> {
-  const data = await fetchAPI<{ trending_by_signals?: TrendingToken[] } | TrendingToken[]>('/api/trending', { trending_by_signals: [] });
+  const data = await fetchAPI<{ trending?: TrendingToken[]; trending_by_signals?: TrendingToken[] } | TrendingToken[]>('/api/trending', { trending: [] });
   if (Array.isArray(data)) return data;
-  return (data as { trending_by_signals?: TrendingToken[] }).trending_by_signals ?? [];
+  const obj = data as { trending?: TrendingToken[]; trending_by_signals?: TrendingToken[] };
+  return obj.trending ?? obj.trending_by_signals ?? [];
 }
 
 // ─── System Status ─────────────────────────────────────────────────────────────
@@ -58,8 +59,8 @@ export async function getSystemStatus() {
   return {
     status: String(raw.status).toUpperCase() as 'OPERATIONAL',
     uptime: raw.uptime_seconds ? `${((raw.uptime_seconds as number) / 3600).toFixed(1)}h` : '0h',
-    lastScan: (raw.last_signal_at as string) ?? new Date().toISOString(),
-    activeSignals: db.total_signals ?? 0,
+    lastScan: (raw.last_alert_at as string) ?? (raw.last_signal_at as string) ?? new Date().toISOString(),
+    activeSignals: db.total_alerts ?? db.total_signals ?? 0,
     totalSignalsGenerated: db.total_signals ?? 0,
     accuracyRate: 0,
     modulesOnline: 6,
