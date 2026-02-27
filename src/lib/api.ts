@@ -15,7 +15,7 @@ import {
   type TrendingToken,
 } from '@/data/mock';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
+const API_BASE = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
 
 async function fetchWithFallback<T>(endpoint: string, fallback: T): Promise<T> {
   try {
@@ -34,23 +34,46 @@ async function fetchWithFallback<T>(endpoint: string, fallback: T): Promise<T> {
 }
 
 export async function getSignals(): Promise<Signal[]> {
-  return fetchWithFallback('/api/signals', mockSignals);
+  const data = await fetchWithFallback<{ signals?: Signal[] } | Signal[]>('/api/signals', mockSignals);
+  if (Array.isArray(data)) return data.length ? data : mockSignals;
+  const arr = (data as { signals?: Signal[] }).signals ?? [];
+  return arr.length ? arr : mockSignals;
 }
 
 export async function getWhaleTransactions(): Promise<WhaleTransaction[]> {
-  return fetchWithFallback('/api/whales', mockWhaleTransactions);
+  const data = await fetchWithFallback<{ whale_transactions?: WhaleTransaction[] } | WhaleTransaction[]>('/api/whales', mockWhaleTransactions);
+  if (Array.isArray(data)) return data.length ? data : mockWhaleTransactions;
+  const arr = (data as { whale_transactions?: WhaleTransaction[] }).whale_transactions ?? [];
+  return arr.length ? arr : mockWhaleTransactions;
 }
 
 export async function getTrendingTokens(): Promise<TrendingToken[]> {
-  return fetchWithFallback('/api/trending', mockTrendingTokens);
+  const data = await fetchWithFallback<{ trending_by_signals?: TrendingToken[]; trending_by_market?: TrendingToken[] } | TrendingToken[]>('/api/trending', mockTrendingTokens);
+  if (Array.isArray(data)) return data.length ? data : mockTrendingTokens;
+  const arr = (data as { trending_by_signals?: TrendingToken[] }).trending_by_signals ?? [];
+  return arr.length ? arr : mockTrendingTokens;
 }
 
 export async function getSystemStatus() {
-  return fetchWithFallback('/api/status', mockSystemStatus);
+  const raw = await fetchWithFallback<Record<string, unknown>>('/api/status', {});
+  if (!raw || !raw.status) return mockSystemStatus;
+  // Normalize real API shape → dashboard shape
+  const db = (raw.database as Record<string, number>) ?? {};
+  return {
+    status: String(raw.status).toUpperCase() as 'OPERATIONAL',
+    uptime: raw.uptime_seconds ? `${((raw.uptime_seconds as number) / 3600).toFixed(1)}h` : '0h',
+    lastScan: (raw.last_signal_at as string) ?? new Date().toISOString(),
+    activeSignals: db.total_signals ?? 0,
+    totalSignalsGenerated: db.total_signals ?? 0,
+    accuracyRate: mockSystemStatus.accuracyRate, // not tracked yet by engine
+    modulesOnline: 6,
+    totalModules: 6,
+  };
 }
 
 export async function getFearGreed() {
-  return fetchWithFallback('/api/fear-greed', mockFearGreed);
+  // /api/fear-greed not implemented in engine yet — use mock
+  return mockFearGreed;
 }
 
 export async function getAccuracyOverTime() {
