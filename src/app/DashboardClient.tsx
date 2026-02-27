@@ -50,7 +50,7 @@ export default function DashboardClient({
   fearGreed,
 }: DashboardClientProps) {
   const activeSignals = signals.filter((s) => s.result === 'PENDING');
-  const sortedSignals = [...signals].sort((a, b) => b.confidence - a.confidence);
+  const sortedSignals = [...signals].sort((a, b) => (b.score ?? b.confidence ?? 0) - (a.score ?? a.confidence ?? 0));
 
   return (
     <div className="space-y-6">
@@ -191,7 +191,7 @@ export default function DashboardClient({
           </div>
           <div className="flex-1 overflow-y-auto max-h-[400px] -mx-1">
             {whaleTransactions.slice(0, 8).map((tx, i) => (
-              <WhaleTransactionItem key={tx.id} tx={tx} index={i} />
+              <WhaleTransactionItem key={tx.id ?? i} tx={tx} index={i} />
             ))}
           </div>
         </GlassCard>
@@ -207,7 +207,7 @@ export default function DashboardClient({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 overflow-y-auto max-h-[400px]">
             {trendingTokens.map((token, i) => (
-              <TrendingTokenCard key={token.symbol} token={token} index={i} />
+              <TrendingTokenCard key={token.token ?? token.symbol ?? i} token={token} index={i} />
             ))}
           </div>
         </GlassCard>
