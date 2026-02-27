@@ -1,36 +1,46 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-} from 'recharts';
-import { Fish, Trophy, Activity, ArrowUpRight, ArrowDownRight, ArrowRightLeft } from 'lucide-react';
+import { Fish, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
 import AutoRefresh from '@/components/AutoRefresh';
-import { WhaleTransaction } from '@/data/mock';
-import { formatNumber, timeAgo, getChainColor } from '@/lib/utils';
+import { timeAgo, getChainColor } from '@/lib/utils';
 
 interface WhalesClientProps {
-  transactions: WhaleTransaction[];
-  volumeChart: Array<{ date: string; eth: number; sol: number; bnb: number }>;
-  topWallets: Array<{
-    rank: number;
-    wallet: string;
-    label: string;
-    totalVolume: string;
-    txCount: number;
-    profitRate: number;
-  }>;
+  transactions: Record<string, any>[];
+  volumeChart: any[];
+  topWallets: any[];
 }
 
 export default function WhalesClient({ transactions, volumeChart, topWallets }: WhalesClientProps) {
   const [chainFilter, setChainFilter] = useState<string>('ALL');
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const filtered = useMemo(() => {
     if (chainFilter === 'ALL') return transactions;
     return transactions.filter((tx) => tx.chain === chainFilter);
   }, [transactions, chainFilter]);
+
+  // Compute live stats from actual data
+  const stats = useMemo(() => {
+    const totalVolume = transactions.reduce((sum, tx) => sum + (tx.volume_24h ?? 0), 0);
+    const accumulations = transactions.filter(tx => (tx.signal_type ?? '').includes('accumulation')).length;
+    const distributions = transactions.filter(tx => (tx.signal_type ?? '').includes('distribution')).length;
+    const ratio = distributions > 0 ? (accumulations / distributions).toFixed(1) : accumulations > 0 ? '∞' : '0';
+    const maxConf = transactions.length > 0 ? Math.max(...transactions.map(tx => tx.confidence ?? 0)) : 0;
+    const topToken = transactions.length > 0 ? transactions.reduce((best, tx) => (tx.confidence ?? 0) > (best.confidence ?? 0) ? tx : best, transactions[0]) : null;
+
+    return {
+      totalVolume,
+      count: transactions.length,
+      ratio,
+      isBullish: accumulations >= distributions,
+      maxConf,
+      topToken: topToken?.token ?? '—',
+    };
+  }, [transactions]);
 
   return (
     <div className="space-y-6">
@@ -41,7 +51,7 @@ export default function WhalesClient({ transactions, volumeChart, topWallets }: 
             <span className="gradient-text">🐋 Whale Tracker</span>
           </h1>
           <p className="text-sm text-text-muted mt-1">
-            Monitoring transactions &gt;$100K across chains
+            Volume anomalies & institutional activity signals
           </p>
         </motion.div>
         <AutoRefresh />
@@ -50,110 +60,31 @@ export default function WhalesClient({ transactions, volumeChart, topWallets }: 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <GlassCard delay={0.05}>
-          <p className="text-xs text-text-muted mb-1">Total Volume (24h)</p>
-          <p className="text-2xl font-display font-bold">$284M</p>
-          <p className="text-[10px] text-green mt-1">↑ 12.3% from yesterday</p>
+          <p className="text-xs text-text-muted mb-1">Whale Signals</p>
+          <p className="text-2xl font-display font-bold">{stats.count}</p>
+          <p className="text-[10px] text-text-secondary mt-1">Active detections</p>
         </GlassCard>
         <GlassCard delay={0.1}>
-          <p className="text-xs text-text-muted mb-1">Transactions (24h)</p>
-          <p className="text-2xl font-display font-bold">{transactions.length}</p>
-          <p className="text-[10px] text-text-secondary mt-1">&gt;$100K each</p>
+          <p className="text-xs text-text-muted mb-1">Accum/Distrib Ratio</p>
+          <p className={`text-2xl font-display font-bold ${stats.isBullish ? 'text-green' : 'text-red'}`}>
+            {stats.ratio}:1
+          </p>
+          <p className="text-[10px] text-text-secondary mt-1">{stats.isBullish ? 'Bullish bias' : 'Bearish bias'}</p>
         </GlassCard>
         <GlassCard delay={0.15}>
-          <p className="text-xs text-text-muted mb-1">Largest TX</p>
-          <p className="text-2xl font-display font-bold">$50M</p>
-          <p className="text-[10px] text-accent mt-1">Binance Hot → USDT</p>
+          <p className="text-xs text-text-muted mb-1">Strongest Signal</p>
+          <p className="text-2xl font-display font-bold">{Math.round(stats.maxConf)}</p>
+          <p className="text-[10px] text-accent mt-1">{stats.topToken}</p>
         </GlassCard>
         <GlassCard delay={0.2}>
-          <p className="text-xs text-text-muted mb-1">Buy/Sell Ratio</p>
-          <p className="text-2xl font-display font-bold text-green">2.3:1</p>
-          <p className="text-[10px] text-text-secondary mt-1">Bullish sentiment</p>
-        </GlassCard>
-      </div>
-
-      {/* Volume Chart + Top Wallets */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Volume Chart */}
-        <GlassCard delay={0.25}>
-          <h3 className="font-display font-semibold text-sm mb-4 flex items-center gap-2">
-            <Activity size={16} className="text-accent" />
-            Transaction Volume by Chain ($M)
-          </h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={volumeChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="date" tick={{ fill: '#666677', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#666677', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    background: 'rgba(20,20,35,0.95)',
-                    border: '1px solid rgba(216,109,203,0.2)',
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="eth" name="Ethereum" fill="#627EEA" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="sol" name="Solana" fill="#9945FF" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="bnb" name="BNB" fill="#F3BA2F" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
-
-        {/* Top Whale Wallets */}
-        <GlassCard delay={0.3}>
-          <h3 className="font-display font-semibold text-sm mb-4 flex items-center gap-2">
-            <Trophy size={16} className="text-yellow" />
-            Top Whale Wallets
-          </h3>
-          <div className="space-y-2 overflow-y-auto max-h-[340px]">
-            {topWallets.map((w, i) => (
-              <motion.div
-                key={w.wallet}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.02] transition-colors"
-              >
-                <span
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                    i === 0 ? 'bg-yellow/20 text-yellow' :
-                    i === 1 ? 'bg-text-secondary/20 text-text-secondary' :
-                    i === 2 ? 'bg-orange/20 text-orange' :
-                    'bg-white/5 text-text-muted'
-                  }`}
-                >
-                  {w.rank}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-display font-semibold text-sm truncate">{w.label}</span>
-                    <span className="text-[10px] text-text-muted font-mono">{w.wallet}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-text-muted mt-0.5">
-                    <span>Vol: {w.totalVolume}</span>
-                    <span>{w.txCount} txs</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span
-                    className="text-xs font-bold"
-                    style={{ color: w.profitRate >= 80 ? '#00E676' : w.profitRate >= 70 ? '#FFD600' : '#FF9100' }}
-                  >
-                    {w.profitRate}%
-                  </span>
-                  <p className="text-[9px] text-text-muted">win rate</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          <p className="text-xs text-text-muted mb-1">Detection Method</p>
+          <p className="text-2xl font-display font-bold">CoinGecko</p>
+          <p className="text-[10px] text-text-secondary mt-1">Vol anomaly + price moves</p>
         </GlassCard>
       </div>
 
       {/* Live Feed with Filter */}
-      <GlassCard delay={0.35} hover={false}>
+      <GlassCard delay={0.25} hover={false}>
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">🐋</span>
@@ -161,7 +92,7 @@ export default function WhalesClient({ transactions, volumeChart, topWallets }: 
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-red/10 text-red animate-pulse">● LIVE</span>
           </div>
           <div className="flex gap-1.5">
-            {['ALL', 'ETH', 'SOL', 'BNB'].map((chain) => (
+            {['ALL', 'multi'].map((chain) => (
               <button
                 key={chain}
                 onClick={() => setChainFilter(chain)}
@@ -171,21 +102,36 @@ export default function WhalesClient({ transactions, volumeChart, topWallets }: 
                     : 'bg-white/5 text-text-muted border border-transparent hover:bg-white/10'
                 }`}
               >
-                {chain}
+                {chain === 'ALL' ? 'ALL' : chain.toUpperCase()}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="space-y-1 max-h-[500px] overflow-y-auto">
+        <div className="space-y-1 max-h-[600px] overflow-y-auto">
+          {filtered.length === 0 && (
+            <div className="text-center py-12 text-text-muted text-sm">
+              No whale signals detected yet. Engine scanning every 60s.
+            </div>
+          )}
           {filtered.map((tx, i) => {
-            const chainColor = getChainColor(tx.chain);
-            const TypeIcon = tx.type === 'BUY' ? ArrowUpRight : tx.type === 'SELL' ? ArrowDownRight : ArrowRightLeft;
-            const typeColor = tx.type === 'BUY' ? '#00E676' : tx.type === 'SELL' ? '#FF1744' : '#FFD600';
+            const chain = tx.chain ?? 'multi';
+            const chainColor = getChainColor(chain);
+            const details = typeof tx.details === 'object' ? tx.details : {};
+            const isAccumulation = (tx.signal_type ?? '').includes('accumulation');
+            const TypeIcon = isAccumulation ? ArrowUpRight : ArrowDownRight;
+            const typeColor = isAccumulation ? '#00E676' : '#FF1744';
+            const typeLabel = isAccumulation ? 'ACCUMULATION' : 'DISTRIBUTION';
+            const name = details?.name ?? tx.token;
+            const change24h = details?.change_24h;
+            const change1h = details?.change_1h;
+            const volMcap = details?.vol_mcap_ratio;
+            const reasons = details?.reasons ?? [];
+            const volume = tx.volume_24h;
 
             return (
               <motion.div
-                key={tx.id}
+                key={tx.id ?? i}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
@@ -196,21 +142,46 @@ export default function WhalesClient({ transactions, volumeChart, topWallets }: 
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-display font-semibold text-sm">{tx.walletLabel || tx.wallet}</span>
+                    <span className="font-display font-semibold text-sm">{tx.token}</span>
+                    {name !== tx.token && (
+                      <span className="text-[10px] text-text-muted">{name}</span>
+                    )}
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: `${chainColor}20`, color: chainColor }}>
-                      {tx.chain}
+                      {chain}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${typeColor}15`, color: typeColor }}>
+                      {typeLabel}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5">
-                    <span className="font-semibold" style={{ color: typeColor }}>{tx.type}</span>
-                    <span>{tx.amount.toLocaleString()} {tx.symbol}</span>
-                    <span>•</span>
-                    <span className="font-mono text-[10px]">{tx.txHash}</span>
+                  <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5 flex-wrap">
+                    <span>Score: <strong style={{ color: typeColor }}>{Math.round(tx.confidence ?? 0)}</strong></span>
+                    {change1h != null && (
+                      <span style={{ color: change1h >= 0 ? '#00E676' : '#FF1744' }}>
+                        1h: {change1h >= 0 ? '+' : ''}{change1h.toFixed(1)}%
+                      </span>
+                    )}
+                    {change24h != null && (
+                      <span style={{ color: change24h >= 0 ? '#00E676' : '#FF1744' }}>
+                        24h: {change24h >= 0 ? '+' : ''}{change24h.toFixed(1)}%
+                      </span>
+                    )}
+                    {volMcap != null && volMcap > 0.1 && (
+                      <span>V/MC: {(volMcap * 100).toFixed(0)}%</span>
+                    )}
+                    {reasons.length > 0 && (
+                      <span className="text-[10px]">💡 {reasons.join(', ')}</span>
+                    )}
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-sm font-display font-bold">{formatNumber(tx.value)}</span>
-                  <p className="text-[10px] text-text-muted">{timeAgo(tx.timestamp)}</p>
+                  {volume ? (
+                    <span className="text-sm font-display font-bold">
+                      ${volume >= 1e9 ? `${(volume / 1e9).toFixed(1)}B` : `${(volume / 1e6).toFixed(0)}M`}
+                    </span>
+                  ) : null}
+                  <p className="text-[10px] text-text-muted">
+                    {mounted && tx.created_at ? timeAgo(tx.created_at) : '—'}
+                  </p>
                 </div>
               </motion.div>
             );
