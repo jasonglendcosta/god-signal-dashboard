@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Eye, Flame, Zap, Radio } from 'lucide-react';
 import { getConfidenceColor, getChainColor, formatPrice, timeAgo } from '@/lib/utils';
@@ -11,6 +12,9 @@ interface SignalCardProps {
 }
 
 export default function SignalCard({ signal, index, onClick }: SignalCardProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Map API fields (token_alerts table) to display fields
   const token = signal.token ?? signal.symbol ?? '???';
   const chain = signal.chain ?? 'multi';
@@ -83,7 +87,7 @@ export default function SignalCard({ signal, index, onClick }: SignalCardProps) 
             </span>
           </div>
           {timestamp && (
-            <span className="text-[10px] text-text-muted">{timeAgo(timestamp)}</span>
+            <span className="text-[10px] text-text-muted">{mounted && timestamp ? timeAgo(timestamp) : '—'}</span>
           )}
         </div>
       </div>

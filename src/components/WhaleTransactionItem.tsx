@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { formatNumber, timeAgo, getChainColor } from '@/lib/utils';
@@ -10,6 +11,9 @@ interface WhaleTransactionItemProps {
 }
 
 export default function WhaleTransactionItem({ tx, index }: WhaleTransactionItemProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const chain = tx.chain ?? 'multi';
   const chainColor = getChainColor(chain);
   const details = typeof tx.details === 'object' ? tx.details : {};
@@ -66,7 +70,7 @@ export default function WhaleTransactionItem({ tx, index }: WhaleTransactionItem
             </>
           )}
           <span>•</span>
-          <span>{tx.created_at ? timeAgo(tx.created_at) : '—'}</span>
+          <span>{mounted && tx.created_at ? timeAgo(tx.created_at) : '—'}</span>
         </div>
       </div>
 
