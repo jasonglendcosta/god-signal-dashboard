@@ -260,7 +260,7 @@ export default function AnalyticsClient({ accuracyData, moduleData, equityData, 
           </div>
           <div className="text-right">
             <span className="text-2xl font-display font-bold text-green">
-              ${equityData[equityData.length - 1]?.equity.toLocaleString()}
+              ${equityData[equityData.length - 1]?.equity?.toLocaleString() ?? '0'}
             </span>
             <p className="text-xs text-green">+{stats.totalReturn}% return</p>
           </div>

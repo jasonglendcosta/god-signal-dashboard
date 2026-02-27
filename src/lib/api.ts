@@ -1,23 +1,8 @@
-import {
-  mockSignals,
-  mockWhaleTransactions,
-  mockTrendingTokens,
-  mockSystemStatus,
-  mockFearGreed,
-  mockAccuracyOverTime,
-  mockModuleContribution,
-  mockEquitySimulation,
-  mockConfidenceOverTime,
-  mockWhaleVolumeChart,
-  mockTopWhaleWallets,
-  type Signal,
-  type WhaleTransaction,
-  type TrendingToken,
-} from '@/data/mock';
+import type { Signal, WhaleTransaction, TrendingToken } from '@/data/mock';
 
 const API_BASE = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
 
-async function fetchWithFallback<T>(endpoint: string, fallback: T): Promise<T> {
+async function fetchAPI<T>(endpoint: string, fallback: T): Promise<T> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -33,31 +18,42 @@ async function fetchWithFallback<T>(endpoint: string, fallback: T): Promise<T> {
   }
 }
 
+// ─── Signals ──────────────────────────────────────────────────────────────────
 export async function getSignals(): Promise<Signal[]> {
-  const data = await fetchWithFallback<{ signals?: Signal[] } | Signal[]>('/api/signals', mockSignals);
-  if (Array.isArray(data)) return data.length ? data : mockSignals;
-  const arr = (data as { signals?: Signal[] }).signals ?? [];
-  return arr.length ? arr : mockSignals;
+  const data = await fetchAPI<{ signals?: Signal[] } | Signal[]>('/api/signals', { signals: [] });
+  if (Array.isArray(data)) return data;
+  return (data as { signals?: Signal[] }).signals ?? [];
 }
 
+// ─── Whale Transactions ────────────────────────────────────────────────────────
 export async function getWhaleTransactions(): Promise<WhaleTransaction[]> {
-  const data = await fetchWithFallback<{ whale_transactions?: WhaleTransaction[] } | WhaleTransaction[]>('/api/whales', mockWhaleTransactions);
-  if (Array.isArray(data)) return data.length ? data : mockWhaleTransactions;
-  const arr = (data as { whale_transactions?: WhaleTransaction[] }).whale_transactions ?? [];
-  return arr.length ? arr : mockWhaleTransactions;
+  const data = await fetchAPI<{ whale_transactions?: WhaleTransaction[] } | WhaleTransaction[]>('/api/whales', { whale_transactions: [] });
+  if (Array.isArray(data)) return data;
+  return (data as { whale_transactions?: WhaleTransaction[] }).whale_transactions ?? [];
 }
 
+// ─── Trending Tokens ──────────────────────────────────────────────────────────
 export async function getTrendingTokens(): Promise<TrendingToken[]> {
-  const data = await fetchWithFallback<{ trending_by_signals?: TrendingToken[]; trending_by_market?: TrendingToken[] } | TrendingToken[]>('/api/trending', mockTrendingTokens);
-  if (Array.isArray(data)) return data.length ? data : mockTrendingTokens;
-  const arr = (data as { trending_by_signals?: TrendingToken[] }).trending_by_signals ?? [];
-  return arr.length ? arr : mockTrendingTokens;
+  const data = await fetchAPI<{ trending_by_signals?: TrendingToken[] } | TrendingToken[]>('/api/trending', { trending_by_signals: [] });
+  if (Array.isArray(data)) return data;
+  return (data as { trending_by_signals?: TrendingToken[] }).trending_by_signals ?? [];
 }
 
+// ─── System Status ─────────────────────────────────────────────────────────────
 export async function getSystemStatus() {
-  const raw = await fetchWithFallback<Record<string, unknown>>('/api/status', {});
-  if (!raw || !raw.status) return mockSystemStatus;
-  // Normalize real API shape → dashboard shape
+  const raw = await fetchAPI<Record<string, unknown>>('/api/status', {});
+  if (!raw || !raw.status) {
+    return {
+      status: 'OFFLINE' as const,
+      uptime: '0h',
+      lastScan: new Date().toISOString(),
+      activeSignals: 0,
+      totalSignalsGenerated: 0,
+      accuracyRate: 0,
+      modulesOnline: 0,
+      totalModules: 6,
+    };
+  }
   const db = (raw.database as Record<string, number>) ?? {};
   return {
     status: String(raw.status).toUpperCase() as 'OPERATIONAL',
@@ -65,37 +61,63 @@ export async function getSystemStatus() {
     lastScan: (raw.last_signal_at as string) ?? new Date().toISOString(),
     activeSignals: db.total_signals ?? 0,
     totalSignalsGenerated: db.total_signals ?? 0,
-    accuracyRate: mockSystemStatus.accuracyRate, // not tracked yet by engine
+    accuracyRate: 0,
     modulesOnline: 6,
     totalModules: 6,
   };
 }
 
+// ─── Fear & Greed (real — alternative.me) ─────────────────────────────────────
 export async function getFearGreed() {
-  // /api/fear-greed not implemented in engine yet — use mock
-  return mockFearGreed;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch('https://api.alternative.me/fng/?limit=2', {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const current = json.data?.[0];
+    const previous = json.data?.[1];
+    const value = parseInt(current?.value ?? '50', 10);
+    const prevValue = parseInt(previous?.value ?? '50', 10);
+    return {
+      value,
+      label: current?.value_classification ?? 'Neutral',
+      previousValue: prevValue,
+      change: value - prevValue,
+    };
+  } catch {
+    return { value: 50, label: 'Neutral', previousValue: 50, change: 0 };
+  }
 }
 
+// ─── Analytics (empty until engine generates data) ────────────────────────────
 export async function getAccuracyOverTime() {
-  return fetchWithFallback('/api/analytics/accuracy', mockAccuracyOverTime);
+  return fetchAPI('/api/analytics/accuracy', []);
 }
 
 export async function getModuleContribution() {
-  return fetchWithFallback('/api/analytics/modules', mockModuleContribution);
+  return fetchAPI('/api/analytics/modules', []);
 }
 
 export async function getEquitySimulation() {
-  return fetchWithFallback('/api/analytics/equity', mockEquitySimulation);
+  return fetchAPI('/api/analytics/equity', []);
 }
 
 export async function getConfidenceOverTime() {
-  return fetchWithFallback('/api/analytics/confidence', mockConfidenceOverTime);
+  return fetchAPI('/api/analytics/confidence', []);
 }
 
 export async function getWhaleVolumeChart() {
-  return fetchWithFallback('/api/whales/volume', mockWhaleVolumeChart);
+  return fetchAPI('/api/whales/volume', []);
 }
 
 export async function getTopWhaleWallets() {
-  return fetchWithFallback('/api/whales/top', mockTopWhaleWallets);
+  return fetchAPI('/api/whales/top', []);
 }
+
+// Re-export types for convenience
+export type { Signal, WhaleTransaction, TrendingToken };
