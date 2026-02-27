@@ -2,17 +2,27 @@
 
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Activity } from 'lucide-react';
-import { TrendingToken } from '@/data/mock';
 import { getChainColor, formatPrice } from '@/lib/utils';
 
 interface TrendingTokenCardProps {
-  token: TrendingToken;
+  token: Record<string, any>;
   index: number;
 }
 
 export default function TrendingTokenCard({ token, index }: TrendingTokenCardProps) {
-  const chainColor = getChainColor(token.chain);
-  const isPositive = token.change24h > 0;
+  const chain = token.chain ?? 'multi';
+  const symbol = token.token ?? token.symbol ?? '???';
+  const name = token.name ?? symbol;
+  const chainColor = getChainColor(chain);
+
+  // API fields: alert_count, avg_score, peak_score, max_whale, max_dex, max_social
+  const alertCount = token.alert_count ?? token.signals ?? 0;
+  const avgScore = token.avg_score ?? 0;
+  const peakScore = token.peak_score ?? 0;
+
+  // Whale interest based on max_whale score
+  const maxWhale = token.max_whale ?? 0;
+  const whaleInterest = maxWhale >= 60 ? 'HIGH' : maxWhale >= 30 ? 'MEDIUM' : 'LOW';
 
   return (
     <motion.div
@@ -27,55 +37,46 @@ export default function TrendingTokenCard({ token, index }: TrendingTokenCardPro
             className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold font-display"
             style={{ background: `${chainColor}20`, color: chainColor }}
           >
-            {token.symbol.slice(0, 3)}
+            {symbol.slice(0, 3)}
           </div>
           <div>
-            <span className="font-display font-semibold text-sm">{token.symbol}</span>
-            <p className="text-[10px] text-text-muted">{token.name}</p>
+            <span className="font-display font-semibold text-sm">{symbol}</span>
+            {name !== symbol && <p className="text-[10px] text-text-muted">{name}</p>}
           </div>
         </div>
         <span
           className="px-1.5 py-0.5 rounded text-[9px] font-bold"
           style={{ background: `${chainColor}20`, color: chainColor }}
         >
-          {token.chain}
+          {chain}
         </span>
       </div>
 
       <div className="flex items-end justify-between">
         <div>
-          <span className="text-lg font-display font-bold">${formatPrice(token.price)}</span>
-          <div className="flex items-center gap-1 mt-0.5">
-            {isPositive ? (
-              <TrendingUp size={12} className="text-green" />
-            ) : (
-              <TrendingDown size={12} className="text-red" />
-            )}
-            <span
-              className="text-xs font-semibold"
-              style={{ color: isPositive ? '#00E676' : '#FF1744' }}
-            >
-              {isPositive ? '+' : ''}
-              {token.change24h.toFixed(1)}%
-            </span>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-display font-bold">{Math.round(avgScore)}</span>
+            <span className="text-[10px] text-text-muted">avg</span>
+            <span className="text-sm font-display font-semibold text-accent">{Math.round(peakScore)}</span>
+            <span className="text-[10px] text-text-muted">peak</span>
           </div>
         </div>
 
         <div className="text-right">
           <div className="flex items-center gap-1 text-[10px] text-text-muted mb-0.5">
             <Activity size={10} />
-            <span>{token.signals} signals</span>
+            <span>{alertCount} alerts</span>
           </div>
           <span
             className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-              token.whaleInterest === 'HIGH'
+              whaleInterest === 'HIGH'
                 ? 'bg-accent/10 text-accent'
-                : token.whaleInterest === 'MEDIUM'
+                : whaleInterest === 'MEDIUM'
                 ? 'bg-yellow/10 text-yellow'
                 : 'bg-white/5 text-text-muted'
             }`}
           >
-            🐋 {token.whaleInterest}
+            🐋 {whaleInterest}
           </span>
         </div>
       </div>

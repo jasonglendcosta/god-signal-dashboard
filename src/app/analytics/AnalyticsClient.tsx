@@ -226,19 +226,18 @@ export default function AnalyticsClient({ accuracyData, moduleData, equityData, 
                   </span>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-display font-semibold text-sm">{signal.symbol}</span>
-                      <span className="text-[10px] text-text-muted">{signal.token}</span>
+                      <span className="font-display font-semibold text-sm">{signal.token ?? signal.symbol ?? '???'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-text-muted mt-0.5">
-                      <span>{signal.type}</span>
+                      <span>{signal.alert_type ?? signal.type ?? '—'}</span>
                       <span>•</span>
-                      <span>{signal.chain}</span>
+                      <span>{signal.chain ?? 'multi'}</span>
                       <span>•</span>
-                      <span>Conf: {signal.confidence}%</span>
+                      <span>Score: {Math.round(signal.score ?? signal.confidence ?? 0)}</span>
                     </div>
                   </div>
-                  <span className="text-sm font-display font-bold text-green">
-                    +{signal.pnl?.toFixed(1)}%
+                  <span className="text-sm font-display font-bold text-accent">
+                    {Math.round(signal.score ?? signal.confidence ?? 0)}
                   </span>
                 </motion.div>
               ))}

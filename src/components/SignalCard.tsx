@@ -1,22 +1,44 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Eye, ExternalLink } from 'lucide-react';
-import { Signal } from '@/data/mock';
+import { TrendingUp, TrendingDown, Eye, Flame, Zap, Radio } from 'lucide-react';
 import { getConfidenceColor, getChainColor, formatPrice, timeAgo } from '@/lib/utils';
 
 interface SignalCardProps {
-  signal: Signal;
+  signal: Record<string, any>;
   index: number;
   onClick?: () => void;
 }
 
 export default function SignalCard({ signal, index, onClick }: SignalCardProps) {
-  const confColor = getConfidenceColor(signal.confidence);
-  const chainColor = getChainColor(signal.chain);
+  // Map API fields (token_alerts table) to display fields
+  const token = signal.token ?? signal.symbol ?? '???';
+  const chain = signal.chain ?? 'multi';
+  const score = signal.score ?? signal.confidence ?? 0;
+  const alertType = signal.alert_type ?? signal.type ?? 'neutral';
+  const details = typeof signal.details === 'object' ? signal.details : {};
+  const price = details?.price_usd ?? signal.price ?? null;
+  const name = details?.name ?? token;
+  const timestamp = signal.created_at ?? signal.timestamp;
+  const sources = details?.active_sources ?? [];
+  const sourceCount = details?.active_source_count ?? sources.length;
 
-  const TypeIcon = signal.type === 'BUY' ? TrendingUp : signal.type === 'SELL' ? TrendingDown : Eye;
-  const typeColor = signal.type === 'BUY' ? '#00E676' : signal.type === 'SELL' ? '#FF1744' : '#FFD600';
+  const confColor = getConfidenceColor(score);
+  const chainColor = getChainColor(chain);
+
+  // Alert type icon + color
+  const typeConfig: Record<string, { icon: typeof TrendingUp; color: string; label: string }> = {
+    bullish:     { icon: Flame,       color: '#00E676', label: 'BULLISH' },
+    momentum:    { icon: Zap,         color: '#FFD600', label: 'MOMENTUM' },
+    whale_alert: { icon: TrendingUp,  color: '#2196F3', label: 'WHALE' },
+    new_listing: { icon: Radio,       color: '#E040FB', label: 'NEW' },
+    bearish:     { icon: TrendingDown, color: '#FF1744', label: 'BEARISH' },
+    neutral:     { icon: Eye,         color: '#9E9E9E', label: 'WATCHING' },
+  };
+  const { icon: TypeIcon, color: typeColor, label: typeLabel } = typeConfig[alertType] ?? typeConfig.neutral;
+
+  // Confidence label
+  const confLabel = score >= 75 ? 'HIGH' : score >= 55 ? 'MEDIUM' : 'LOW';
 
   return (
     <motion.div
@@ -32,19 +54,24 @@ export default function SignalCard({ signal, index, onClick }: SignalCardProps) 
             className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold font-display"
             style={{ background: `${chainColor}20`, color: chainColor }}
           >
-            {signal.symbol.slice(0, 3)}
+            {token.slice(0, 3)}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display font-semibold text-sm">{signal.token}</span>
+              <span className="font-display font-semibold text-sm">{token}</span>
+              {name !== token && (
+                <span className="text-[10px] text-text-muted">{name}</span>
+              )}
               <span
                 className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"
                 style={{ background: `${chainColor}20`, color: chainColor }}
               >
-                {signal.chain}
+                {chain}
               </span>
             </div>
-            <span className="text-xs text-text-muted">${formatPrice(signal.price)}</span>
+            {price != null && (
+              <span className="text-xs text-text-muted">${formatPrice(price)}</span>
+            )}
           </div>
         </div>
 
@@ -52,10 +79,12 @@ export default function SignalCard({ signal, index, onClick }: SignalCardProps) 
           <div className="flex items-center gap-1.5 justify-end">
             <TypeIcon size={14} style={{ color: typeColor }} />
             <span className="text-xs font-bold" style={{ color: typeColor }}>
-              {signal.type}
+              {typeLabel}
             </span>
           </div>
-          <span className="text-[10px] text-text-muted">{timeAgo(signal.timestamp)}</span>
+          {timestamp && (
+            <span className="text-[10px] text-text-muted">{timeAgo(timestamp)}</span>
+          )}
         </div>
       </div>
 
@@ -63,9 +92,11 @@ export default function SignalCard({ signal, index, onClick }: SignalCardProps) 
         {/* Confidence bar */}
         <div className="flex-1 mr-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-text-muted uppercase tracking-wider">Confidence</span>
+            <span className="text-[10px] text-text-muted uppercase tracking-wider">
+              Score ({confLabel})
+            </span>
             <span className="text-xs font-bold font-display" style={{ color: confColor }}>
-              {signal.confidence}%
+              {Math.round(score)}
             </span>
           </div>
           <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
@@ -73,28 +104,18 @@ export default function SignalCard({ signal, index, onClick }: SignalCardProps) 
               className="h-full rounded-full"
               style={{ background: confColor }}
               initial={{ width: 0 }}
-              animate={{ width: `${signal.confidence}%` }}
+              animate={{ width: `${Math.min(score, 100)}%` }}
               transition={{ duration: 0.8, delay: index * 0.05 + 0.3 }}
             />
           </div>
         </div>
 
-        {/* PnL or status */}
-        {signal.result && (
+        {/* Source count badge */}
+        {sourceCount > 0 && (
           <div className="text-right">
-            {signal.result === 'PENDING' ? (
-              <span className="text-[10px] px-2 py-1 rounded-full bg-yellow/10 text-yellow">
-                ● LIVE
-              </span>
-            ) : (
-              <span
-                className="text-xs font-bold"
-                style={{ color: signal.result === 'WIN' ? '#00E676' : '#FF1744' }}
-              >
-                {signal.pnl && signal.pnl > 0 ? '+' : ''}
-                {signal.pnl?.toFixed(1)}%
-              </span>
-            )}
+            <span className="text-[10px] px-2 py-1 rounded-full bg-accent/10 text-accent">
+              {sourceCount} {sourceCount === 1 ? 'source' : 'sources'}
+            </span>
           </div>
         )}
       </div>
