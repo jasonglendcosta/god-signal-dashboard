@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -176,7 +176,7 @@ export default function SignalsClient({ signals, confidenceData }: SignalsClient
                 const price = details?.price_usd;
 
                 return (
-                  <motion.tbody key={signal.id} layout>
+                  <React.Fragment key={signal.id}>
                     <tr
                       onClick={() => setExpandedId(isExpanded ? null : signal.id)}
                       className="border-b border-white/[0.03] hover:bg-white/[0.02] cursor-pointer transition-colors"
@@ -274,7 +274,7 @@ export default function SignalsClient({ signals, confidenceData }: SignalsClient
                         </motion.tr>
                       )}
                     </AnimatePresence>
-                  </motion.tbody>
+                  </React.Fragment>
                 );
               })}
             </tbody>
